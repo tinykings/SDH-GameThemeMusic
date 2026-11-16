@@ -47,3 +47,11 @@ backend/out
 .pnpm-store/
 cli/
 out/
+output/
+build.bat
+.gitignore
+output/GameThemeMusic.zip
+
+# Downloaded executables and local troubleshooting backups
+/bin/
+*.bak

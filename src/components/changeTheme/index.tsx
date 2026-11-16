@@ -4,39 +4,76 @@ import { useEffect, useState } from 'react'
 import useTranslations from '../../hooks/useTranslations'
 import ChangePage from './changePage'
 import AboutPage from './aboutPage'
-import { getResolver } from '../../actions/audio'
-import { YouTubeVideoPreview } from '../../../types/YouTube'
+import { getResolver, MusicSearchError, SearchFailure } from '../../actions/audio'
+import { getInitialSearch as buildInitialSearch } from '../../lib/searchTerm'
+import { MediaContentPreview } from 'types/media'
 import GameSettings from './gameSettings'
 import { useSettings } from '../../hooks/useSettings'
+
+const searchErrorMessages = {
+  blocked: 'searchBlocked',
+  rate_limited: 'searchRateLimited',
+  timeout: 'searchTimedOut',
+  http_error: 'searchFailed',
+  network_error: 'searchFailed',
+  unknown: 'searchFailed'
+} as const
 
 export default function ChangeTheme() {
   const [currentTab, setCurrentTab] = useState<string>('change-music-tab')
   const t = useTranslations()
-  const { settings, isLoading: settingsLoading } = useSettings()
+  const { settings, isLoading: settingsLoading, setMusicProvider } = useSettings()
   const { appid } = useParams<{ appid: string }>()
   const appDetails = appStore.GetAppOverviewByGameID(parseInt(appid))
   const appName = appDetails?.display_name?.replace(/(™|®|©)/g, '')
 
   const [videos, setVideos] = useState<
-    (YouTubeVideoPreview & { isPlaying: boolean })[]
+    (MediaContentPreview & { isPlaying: boolean })[]
   >([])
   const [loadingNum, setLoadingNum] = useState(0)
-  const initialSearch = appName?.concat(' Theme Music') ?? ''
-  const [searchTerm, setSearchTerm] = useState(initialSearch)
+  const [searchError, setSearchError] = useState<SearchFailure | 'unknown' | null>(null)
+  const [searchAttempt, setSearchAttempt] = useState(0)
+
+  const getInitialSearch = (provider?: string) =>
+    buildInitialSearch(appName, provider, settings.musicProvider)
+
+  const [searchTerm, setSearchTerm] = useState(getInitialSearch())
+
+  useEffect(() => {
+    if (settingsLoading) return
+
+    const ytDefault = getInitialSearch('youtube')
+    const khDefault = getInitialSearch('khinsider')
+
+    if (settings.musicProvider === 'khinsider' && searchTerm === ytDefault) {
+      setSearchTerm(khDefault)
+    } else if (settings.musicProvider === 'youtube' && searchTerm === khDefault) {
+      setSearchTerm(ytDefault)
+    } else if (!searchTerm) {
+      setSearchTerm(getInitialSearch())
+    }
+  }, [settingsLoading, appName, settings.musicProvider])
+
   useEffect(() => {
     let ignore = false
     async function getData() {
       setLoadingNum((x) => x + 1)
       setVideos([])
-      const resolver = getResolver(settings.useYtDlp)
-      const res = resolver.getYouTubeSearchResults(searchTerm)
-      for await (const video of res) {
-        if (ignore) {
-          break
+      setSearchError(null)
+      try {
+        const resolver = getResolver(settings.musicProvider)
+        const res = resolver.getYouTubeSearchResults(searchTerm)
+        for await (const video of res) {
+          if (ignore) break
+          setVideos((oldVideos) => [...oldVideos, { isPlaying: false, ...video }])
         }
-        setVideos((oldVideos) => [...oldVideos, { isPlaying: false, ...video }])
+      } catch (error) {
+        if (!ignore) {
+          setSearchError(error instanceof MusicSearchError ? error.reason : 'unknown')
+        }
+      } finally {
+        setLoadingNum((x) => x - 1)
       }
-      setLoadingNum((x) => x - 1)
     }
     if (searchTerm.length > 0 && !settingsLoading) {
       getData()
@@ -44,7 +81,13 @@ export default function ChangeTheme() {
     return () => {
       ignore = true
     }
-  }, [searchTerm, settingsLoading])
+  }, [searchTerm, searchAttempt, settingsLoading, settings.musicProvider])
+
+  function submitSearch(term: string) {
+    setSearchTerm(term)
+    // same text won't retrigger the effect on its own
+    setSearchAttempt((attempt) => attempt + 1)
+  }
 
   function handlePlay(index: number, startPlay: boolean) {
     setVideos((oldVideos) => {
@@ -57,8 +100,9 @@ export default function ChangeTheme() {
   }
 
   function setInitialSearch() {
-    setSearchTerm(initialSearch)
-    return initialSearch
+    const term = getInitialSearch()
+    submitSearch(term)
+    return term
   }
 
   return (
@@ -79,10 +123,13 @@ export default function ChangeTheme() {
               <ChangePage
                 videos={videos}
                 loading={loadingNum > 0}
+                searchError={searchError ? t(searchErrorMessages[searchError]) : null}
                 handlePlay={handlePlay}
-                customSearch={setSearchTerm}
+                customSearch={submitSearch}
                 currentSearch={searchTerm}
                 setInitialSearch={setInitialSearch}
+                settings={settings}
+                setMusicProvider={setMusicProvider}
               />
             ),
             id: 'change-music-tab'

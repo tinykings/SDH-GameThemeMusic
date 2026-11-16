@@ -1,20 +1,15 @@
 import { call } from '@decky/api'
-import {
-  YouTubeVideo,
-  YouTubeInitialData,
-  Audio,
-  YouTubeVideoPreview
-} from '../../types/YouTube'
-import { Settings, defaultSettings } from '../hooks/useSettings'
+import { MediaContent, MediaContentPreview } from 'types/media'
 
 abstract class AudioResolver {
   abstract getYouTubeSearchResults(
     searchTerm: string
-  ): AsyncIterable<YouTubeVideoPreview>
+  ): AsyncIterable<MediaContentPreview>
   abstract getAudioUrlFromVideo(
-    video: YouTubeVideo
+    video: MediaContent
   ): Promise<string | undefined>
-  abstract downloadAudio(video: YouTubeVideo): Promise<boolean>
+  abstract downloadAudio(video: MediaContent): Promise<boolean>
+  abstract isDownloaded(video: MediaContent): Promise<boolean>
 
   async getAudio(
     appName: string
@@ -30,96 +25,16 @@ abstract class AudioResolver {
   }
 }
 
-class InvidiousAudioResolver extends AudioResolver {
-  async getEndpoint() {
-    const savedSettings = await call<[string, Settings], Settings>(
-      'get_setting',
-      'settings',
-      defaultSettings
-    )
-    return savedSettings.invidiousInstance
-  }
-
+export class YtDlpAudioResolver extends AudioResolver {
   async *getYouTubeSearchResults(
     searchTerm: string
-  ): AsyncIterable<YouTubeVideoPreview> {
-    try {
-      const encodedSearchTerm = `${encodeURIComponent(searchTerm)}`
-      const endpoint = await this.getEndpoint()
-      const res = await fetch(
-        `${endpoint}/api/v1/search?type=video&page=1&q=${encodedSearchTerm}`
-      )
-      if (res.status === 200) {
-        const results: YouTubeInitialData = await res.json()
-        if (results.length) {
-          yield* results
-            .map((res) => ({
-              title: res.title,
-              id: res.videoId,
-              thumbnail:
-                res.videoThumbnails?.[0].url || 'https://i.ytimg.com/vi/0.jpg'
-            }))
-            .filter((res) => res.id.length)
-        }
-      }
-    } catch (err) {
-      console.debug(err)
-    }
-    return
-  }
-
-  async getAudioUrlFromVideo(video: YouTubeVideo): Promise<string | undefined> {
-    try {
-      const endpoint = await this.getEndpoint()
-      const res = await fetch(
-        `${endpoint}/api/v1/videos/${encodeURIComponent(video.id)}?fields=adaptiveFormats`
-      )
-      if (res.status === 200) {
-        const result = await res.json()
-        const audioFormats: { adaptiveFormats: Audio[] } = result
-
-        const audios = audioFormats.adaptiveFormats.filter((aud) =>
-          aud.type?.includes('audio/webm')
-        )
-        const audio = audios.reduce((prev, current) => {
-          return prev.audioSampleRate > current.audioSampleRate ? prev : current
-        }, audios[0])
-
-        return audio?.url
-      }
-    } catch (err) {
-      console.log(err)
-    }
-    return undefined
-  }
-
-  async downloadAudio(video: YouTubeVideo): Promise<boolean> {
-    if (!video.url) {
-      video.url = await this.getAudioUrlFromVideo(video)
-      if (!video.url) {
-        return false
-      }
-    }
-    try {
-      await call<[string, string]>('download_url', video.url, video.id)
-      return true
-    } catch (e) {
-      console.error(e)
-      return false
-    }
-  }
-}
-
-class YtDlpAudioResolver extends AudioResolver {
-  async *getYouTubeSearchResults(
-    searchTerm: string
-  ): AsyncIterable<YouTubeVideoPreview> {
+  ): AsyncIterable<MediaContentPreview> {
     try {
       await call<[string]>('search_yt', searchTerm)
-      let result = await call<[], YouTubeVideoPreview | null>('next_yt_result')
+      let result = await call<[], MediaContentPreview | null>('next_yt_result')
       while (result) {
         yield result
-        result = await call<[], YouTubeVideoPreview | null>('next_yt_result')
+        result = await call<[], MediaContentPreview | null>('next_yt_result')
       }
       return
     } catch (err) {
@@ -128,12 +43,10 @@ class YtDlpAudioResolver extends AudioResolver {
     return
   }
 
-  async getAudioUrlFromVideo(video: YouTubeVideo): Promise<string | undefined> {
-    if (video.url) {
+  async getAudioUrlFromVideo(video: MediaContent): Promise<string | undefined> {
+    if (video.url && !video.url.includes('youtube.com') && !video.url.includes('youtu.be')) {
       return video.url
     } else {
-      // We need to retrieve the audio URL first.
-      // This may return a local filesystem URL if the file has been downloaded before.
       const result = await call<[string], string | null>(
         'single_yt_url',
         video.id
@@ -142,7 +55,7 @@ class YtDlpAudioResolver extends AudioResolver {
     }
   }
 
-  async downloadAudio(video: YouTubeVideo): Promise<boolean> {
+  async downloadAudio(video: MediaContent): Promise<boolean> {
     try {
       await call<[string]>('download_yt_audio', video.id)
       return true
@@ -151,115 +64,235 @@ class YtDlpAudioResolver extends AudioResolver {
       return false
     }
   }
-}
 
-export function getResolver(useYtDlp: boolean): AudioResolver {
-  if (useYtDlp) {
-    return new YtDlpAudioResolver()
-  } else {
-    return new InvidiousAudioResolver()
+  async isDownloaded(video: MediaContent): Promise<boolean> {
+    return await call<[string], boolean>('local_audio_exists', video.id)
   }
 }
 
-type InvidiousInstance = {
-  flag: string
-  region: string
-  stats: {
-    version: string
-    software: {
-      name: string
-      version: string
-      branch: string
-    }
-    openRegistrations: boolean
-    usage: {
-      users: {
-        total: number
-        activeHalfyear: number
-        activeMonth: number
+export type SearchFailure = 'blocked' | 'rate_limited' | 'timeout' | 'http_error' | 'network_error'
+
+export class MusicSearchError extends Error {
+  reason: SearchFailure
+
+  constructor(reason: SearchFailure) {
+    super(`Music search failed: ${reason}`)
+    this.reason = reason
+    this.name = 'MusicSearchError'
+  }
+}
+
+type PageResult = {
+  html: string
+  error: SearchFailure | null
+  status: number | null
+}
+
+export class KhinsiderAudioResolver extends AudioResolver {
+  async *getYouTubeSearchResults(
+    searchTerm: string
+  ): AsyncIterable<MediaContentPreview> {
+    let lastFetchAt = 0
+    const fetchDoc = async (url: string) => {
+      const sinceLast = Date.now() - lastFetchAt
+      if (lastFetchAt && sinceLast < 1000) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 - sinceLast))
       }
+      lastFetchAt = Date.now()
+      const result = await call<[string], PageResult>('fetch_page', url)
+      if (result.error) throw new MusicSearchError(result.error)
+      if (!result.html) return null
+      const parser = new DOMParser()
+      return parser.parseFromString(result.html, 'text/html')
     }
-    metadata: {
-      updatedAt: number
-      lastChannelRefreshedAt: number
-    }
-    playback?: {
-      totalRequests?: number
-      successfulRequests?: number
-      ratio?: number
-    }
-  } | null
-  cors: boolean | null
-  api: boolean | null
-  type: string
-  uri: string
-  monitor: {
-    token: string
-    url: string
-    alias: string
-    last_status: number
-    uptime: number
-    down: boolean
-    down_since: string | null
-    up_since: string | null
-    error: string | null
-    period: number
-    apdex_t: number
-    string_match: string
-    enabled: boolean
-    published: boolean
-    disabled_locations: string[]
-    recipients: string[]
-    last_check_at: string
-    next_check_at: string
-    created_at: string
-    mute_until: string | null
-    favicon_url: string
-    custom_headers: Record<string, string>
-    http_verb: string
-    http_body: string
-    ssl: {
-      tested_at: string
-      expires_at: string
-      valid: boolean
-      error: string | null
+
+    const searchUrl = (query: string) => `https://downloads.khinsider.com/search?search=${encodeURIComponent(query)}`
+
+    try {
+      let doc = await fetchDoc(searchUrl(searchTerm))
+
+      if (!doc || (doc.querySelectorAll('a[href*="/album/"]').length === 0 && doc.querySelectorAll('.playlistItem, #songlist, .clickable-row').length === 0)) {
+        const baseName = searchTerm.replace(/\s+(Theme Music|Soundtrack|OST)$/i, '')
+        if (baseName !== searchTerm) {
+          doc = await fetchDoc(searchUrl(baseName))
+        }
+      }
+
+      if (!doc) return
+
+      const rawAlbumLinks = Array.from(doc.querySelectorAll('a[href*="/game-soundtracks/album/"]'))
+      const seenAlbumHrefs = new Set<string>()
+      const topAlbums: { url: string; title: string; thumbnail: string }[] = []
+
+      for (const link of rawAlbumLinks) {
+        const href = link.getAttribute('href')
+        if (href && !seenAlbumHrefs.has(href)) {
+          seenAlbumHrefs.add(href)
+          const albumUrl = href.startsWith('http') ? href : `https://downloads.khinsider.com${href}`
+
+          let title = link.textContent?.trim()
+          const row = (link as HTMLElement).closest('tr')
+          if (!title && row) {
+            title = Array.from(row.querySelectorAll('td'))
+              .map(td => td.textContent?.trim())
+              .filter(t => t && t.length > 2)[0]
+          }
+          if (!title) title = 'Unknown Album'
+
+          let thumbnail = 'https://downloads.khinsider.com/images/no-cover.png'
+          if (row) {
+            const img = row.querySelector('img')
+            if (img && img.src) thumbnail = img.src
+          }
+          topAlbums.push({ url: albumUrl, title, thumbnail })
+          if (topAlbums.length >= 8) break
+        }
+      }
+
+      const seenTrackHrefs = new Set<string>()
+      for (const album of topAlbums) {
+        const albumDoc = await fetchDoc(album.url)
+        if (!albumDoc) continue
+
+        const trackLinks = Array.from(albumDoc.querySelectorAll('.playlistItem td.clickable-row a, #songlist td.clickable-row a'))
+
+        for (const trackLink of trackLinks) {
+          const href = trackLink.getAttribute('href')
+          if (!href || seenTrackHrefs.has(href)) continue
+          seenTrackHrefs.add(href)
+
+          const trackUrl = href.startsWith('http') ? href : `https://downloads.khinsider.com${href}`
+          const trackTitle = trackLink.textContent?.trim() || 'Track'
+
+          yield {
+            id: trackUrl,
+            title: `${trackTitle} (${album.title})`,
+            thumbnail: album.thumbnail
+          }
+        }
+      }
+
+      if (topAlbums.length === 0) {
+        const tracks = Array.from(doc.querySelectorAll('.playlistItem a, .clickable-row a, #songlist a'))
+        for (const track of tracks) {
+          const href = track.getAttribute('href')
+          if (!href || href.includes('/search') || !href.includes('/album/') || seenTrackHrefs.has(href)) continue
+          seenTrackHrefs.add(href)
+
+          const trackUrl = href.startsWith('http') ? href : `https://downloads.khinsider.com${href}`
+          const title = track.textContent?.trim()
+          if (!title || title.length < 2) continue
+
+          yield {
+            id: trackUrl,
+            title: title,
+            thumbnail: 'https://downloads.khinsider.com/images/no-cover.png'
+          }
+          if (seenTrackHrefs.size >= 30) break
+        }
+      }
+    } catch (err) {
+      console.error("KHInsider search failed:", err)
+      throw err
     }
   }
-}
 
-type InvidiousInstances = InvidiousInstance[]
+  async getAudioUrlFromVideo(video: MediaContent): Promise<string | undefined> {
+    const localUrl = await call<[string], string | null>('local_audio_url', video.id)
+    if (localUrl) return localUrl
 
-export async function getInvidiousInstances(): Promise<
-  { name: string; url: string }[]
-> {
-  try {
-    const res = await fetch(
-      'https://api.invidious.io/instances.json?&sort_by=users,health'
-    )
-    if (res.status === 200) {
-      const instances: InvidiousInstances = (await res.json()).map(
-        ([, instance]: [string, InvidiousInstance]) => instance
+    try {
+      const html = await call<[string], string>('fetch_url', video.id)
+      if (!html) return undefined
+
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(html, 'text/html')
+
+      const audio = doc.querySelector('audio')
+      if (audio) {
+        const src = audio.getAttribute('src')
+        if (src) return src
+
+        const source = audio.querySelector('source')
+        if (source) {
+          const sourceSrc = source.getAttribute('src')
+          if (sourceSrc) return sourceSrc
+        }
+      }
+
+      const downloadLink = doc.querySelector('a .songDownloadLink')?.closest('a')
+      const downloadHref = resolveDownloadHref(
+        downloadLink?.getAttribute('href') ?? null
       )
-      if (instances?.length) {
-        return instances
-          .filter((ins) => ins.type === 'https')
-          .map((ins) => ({
-            name: `${ins.flag} ${ins.monitor?.alias ?? ins.uri} | ${ins.stats?.usage.users.total} Users${
-              ins.monitor?.uptime
-                ? ` | Uptime: ${(ins.monitor.uptime / 100).toLocaleString(
-                    'en',
-                    {
-                      style: 'percent'
-                    }
-                  )}`
-                : ''
-            }`,
-            url: ins.uri
-          }))
+      if (downloadHref) return downloadHref
+
+      for (const link of doc.querySelectorAll('a')) {
+        const href = resolveDownloadHref(link.getAttribute('href'))
+        if (href) return href
       }
+
+      return undefined
+    } catch (e) {
+      console.error('KHInsider audio fetch failed:', e)
+      return undefined
     }
-  } catch (err) {
-    console.debug(err)
   }
-  return []
+
+  async downloadAudio(video: MediaContent): Promise<boolean> {
+    try {
+      const downloaded = await this.isDownloaded(video)
+      if (downloaded) return true
+
+      const url = await this.getAudioUrlFromVideo(video)
+      if (!url) return false
+      if (url.startsWith('data:')) return true
+
+      await call<[string, string]>('download_url', url, video.id)
+      return true
+    } catch (e) {
+      console.error(e)
+      return false
+    }
+  }
+
+  async isDownloaded(video: MediaContent): Promise<boolean> {
+    return await call<[string], boolean>('local_audio_exists', video.id)
+  }
+}
+
+export function resolveDownloadHref(
+  href: string | null
+): string | undefined {
+  if (!href || !/\.(mp3|ogg|flac|m4a|wav|aac|opus)$/i.test(href)) {
+    return undefined
+  }
+  return href.startsWith('http')
+    ? href
+    : `https://downloads.khinsider.com${href}`
+}
+
+export function getResolver(provider?: string): AudioResolver {
+  if (provider === 'khinsider') {
+    return new KhinsiderAudioResolver()
+  }
+  return new YtDlpAudioResolver()
+}
+
+export function getResolverForMediaId(
+  id: string,
+  fallbackProvider?: string
+): AudioResolver {
+  if (
+    id.startsWith('https://downloads.khinsider.com/') ||
+    id.startsWith('http://downloads.khinsider.com/')
+  ) {
+    return new KhinsiderAudioResolver()
+  }
+  if (id.includes('youtube.com') || id.includes('youtu.be')) {
+    return new YtDlpAudioResolver()
+  }
+  if (id.startsWith('https://') || id.startsWith('http://')) {
+    return new KhinsiderAudioResolver()
+  }
+  return getResolver(fallbackProvider)
 }

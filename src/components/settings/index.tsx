@@ -10,11 +10,9 @@ import {
   showContextMenu,
   showModal,
   ShowModalResult,
-  SingleDropdownOption,
-  SliderField,
-  ToggleField
+  SliderField
 } from '@decky/ui'
-import { useMemo } from 'react'
+import { useState } from 'react'
 import { SiCrowdin, SiDiscord, SiGithub, SiKofi } from "react-icons/si";
 import { useSettings } from '../../hooks/useSettings'
 import useTranslations from '../../hooks/useTranslations'
@@ -22,9 +20,8 @@ import {
   FaDownload,
   FaUndo,
   FaSave,
-  FaVolumeMute,
   FaVolumeUp,
-  FaYoutube,
+  FaSync,
 } from 'react-icons/fa'
 import {
   clearCache,
@@ -34,35 +31,19 @@ import {
   importCache,
   listCacheBackups
 } from '../../cache/musicCache'
-import useInvidiousInstances from '../../hooks/useInvidiousInstances'
-import { toaster } from '@decky/api'
-import { getResolver } from '../../actions/audio'
+import { toaster, call } from '@decky/api'
+import { getResolverForMediaId } from '../../actions/audio'
 import PanelSocialButton from './socialButton'
 
 export default function Index() {
   const {
     settings,
-    isLoading: settingsIsLoading,
-    setDefaultMuted,
-    setUseYtDlp,
-    setDownloadAudio,
-    setInvidiousInstance,
-    setVolume
+    setVolume,
+    setAutoPlaybackMode,
   } = useSettings()
 
   const t = useTranslations()
-
-  const { instances, instancesLoading } = useInvidiousInstances()
-  console.log(instances)
-
-  const instanceOptions = useMemo<SingleDropdownOption[]>(
-    () =>
-      instances.map((ins) => ({
-        data: ins.url,
-        label: ins.name
-      })),
-    [instances]
-  )
+  const [isUpdatingYtDlp, setIsUpdatingYtDlp] = useState(false)
 
   const confirmClearCache = () => {
     showModal(
@@ -84,7 +65,9 @@ export default function Index() {
   }
 
   const confirmRestoreDownloads = async () => {
-    const num = Object.values(await getFullCache()).length
+    const num = Object.values(await getFullCache()).filter(
+      (entry) => entry.videoId?.length
+    ).length
     const modal = showModal(
       <ConfirmModal
         strTitle={t('restoreDownloadsConfirm')}
@@ -149,28 +132,74 @@ export default function Index() {
       )
     }
 
-    const cached = Object.values(await getFullCache())
-    const resolver = getResolver(settings.useYtDlp)
+    const cached = Object.values(await getFullCache()).filter(
+      (entry) => entry.videoId?.length
+    )
+
+    let restored = 0
+    let failed = 0
+    let skipped = 0
 
     for (let index = 0; index < cached.length; index++) {
       const element = cached[index]
-      if (element.videoId !== undefined) {
-        modal.Update(getProgressModal(index, cached.length))
-        await resolver.downloadAudio({ id: element.videoId })
+      const videoId = element.videoId as string
+      const resolver = getResolverForMediaId(videoId, settings.musicProvider)
+
+      modal.Update(getProgressModal(index, cached.length))
+
+      if (await resolver.isDownloaded({ id: videoId })) {
+        skipped++
+        continue
+      }
+
+      const success = await resolver.downloadAudio({ id: videoId })
+      if (success) {
+        restored++
+      } else {
+        failed++
       }
     }
     modal.Close()
-    toaster.toast({
-      title: t('downloadRestoreSuccessful'),
-      body: t('downloadRestoreSuccessfulDetails'),
-      icon: <FaDownload />,
-      duration: 1500
-    })
+
+    if (failed > 0) {
+      toaster.toast({
+        title: t('downloadFailed'),
+        body: t('downloadFailedDetail'),
+        icon: <FaDownload />,
+        duration: 3000
+      })
+    } else if (restored > 0) {
+      toaster.toast({
+        title: t('downloadRestoreSuccessful'),
+        body: t('downloadRestoreSuccessfulDetails'),
+        icon: <FaDownload />,
+        duration: 1500
+      })
+    } else if (skipped > 0) {
+      toaster.toast({
+        title: t('downloadRestoreSuccessful'),
+        body: t('downloadRestoreSuccessfulDetails'),
+        icon: <FaDownload />,
+        duration: 1500
+      })
+    }
   }
 
   return (
     <div>
       <PanelSection title={t('settings')}>
+        <PanelSectionRow>
+          <DropdownItem
+            label="Automatic theme playback"
+            description="Stream immediately. Auto download also saves songs in the background for faster, offline playback later. Existing downloads are reused in either mode."
+            rgOptions={[
+              { label: 'Auto stream', data: 'stream' },
+              { label: 'Auto download', data: 'download' }
+            ]}
+            selectedOption={settings.autoPlaybackMode}
+            onChange={(option) => setAutoPlaybackMode(option.data)}
+          />
+        </PanelSectionRow>
         <PanelSectionRow>
           <SliderField
             label={t('volume')}
@@ -187,58 +216,46 @@ export default function Index() {
           />
         </PanelSectionRow>
         <PanelSectionRow>
-          <ToggleField
-            icon={<FaVolumeMute />}
-            checked={settings.defaultMuted}
-            label={t('defaultMuted')}
-            description={t('defaultMutedDescription')}
-            onChange={(newVal: boolean) => {
-              setDefaultMuted(newVal)
-            }}
-          />
-        </PanelSectionRow>
-        <PanelSectionRow>
-          <ToggleField
-            icon={<FaYoutube />}
-            checked={settings.useYtDlp}
-            label={t('useYtDlp')}
-            description={t('useYtDlpDescription')}
-            onChange={(newVal: boolean) => {
-              setUseYtDlp(newVal)
-            }}
-          />
-        </PanelSectionRow>
-        {!settings.useYtDlp && (
-          <PanelSectionRow>
-            <DropdownItem
-              disabled={
-                instancesLoading ||
-                !instanceOptions?.length ||
-                settingsIsLoading
+          <ButtonItem
+            label={t('updateYtDlpLabel')}
+            description={t('updateYtDlpDescription')}
+            layout="below"
+            disabled={isUpdatingYtDlp}
+            onClick={async () => {
+              setIsUpdatingYtDlp(true)
+              try {
+                const result = await call<[], { success: boolean; message: string }>(
+                  'update_yt_dlp'
+                )
+                if (result.success) {
+                  toaster.toast({
+                    title: t('updateYtDlpSuccess'),
+                    body: result.message,
+                    icon: <FaSync />,
+                    duration: 3000
+                  })
+                } else {
+                  toaster.toast({
+                    title: t('updateYtDlpFailed'),
+                    body: result.message,
+                    icon: <FaSync />,
+                    duration: 5000
+                  })
+                }
+              } catch (error) {
+                toaster.toast({
+                  title: t('updateYtDlpFailed'),
+                  body: error instanceof Error ? error.message : String(error),
+                  icon: <FaSync />,
+                  duration: 5000
+                })
+              } finally {
+                setIsUpdatingYtDlp(false)
               }
-              label={t('invidiousInstance')}
-              description={t('invidiousInstanceDescription')}
-              menuLabel={t('invidiousInstance')}
-              rgOptions={instanceOptions}
-              selectedOption={
-                instanceOptions.find(
-                  (o) => o.data === settings.invidiousInstance
-                )?.data
-              }
-              onChange={(newVal) => setInvidiousInstance(newVal.data)}
-            />
-          </PanelSectionRow>
-        )}
-        <PanelSectionRow>
-          <ToggleField
-            icon={<FaDownload />}
-            checked={settings.downloadAudio}
-            label={t('downloadAudio')}
-            description={t('downloadAudioDescription')}
-            onChange={(newVal: boolean) => {
-              setDownloadAudio(newVal)
             }}
-          ></ToggleField>
+          >
+            {isUpdatingYtDlp ? t('updating') : t('updateYtDlp')}
+          </ButtonItem>
         </PanelSectionRow>
         <PanelSectionRow>
           <ButtonItem
@@ -318,9 +335,9 @@ export default function Index() {
         </PanelSectionRow>
       </PanelSection>
       <PanelSection title={t('extras')}>
-        <PanelSocialButton icon={<SiKofi fill="#FF5E5B" />} url="https://ko-fi.com/OMGDuke">Ko-fi</PanelSocialButton>
+        <PanelSocialButton icon={<SiKofi fill="#FF5E5B" />} url="https://ko-fi.com/MegalonVII">Ko-fi</PanelSocialButton>
         <PanelSocialButton icon={<SiDiscord fill="#5865F2" />} url="https://deckbrew.xyz/discord">Discord</PanelSocialButton>
-        <PanelSocialButton icon={<SiGithub fill="#f5f5f5" />} url="https://github.com/OMGDuke/SDH-GameThemeMusic/">Github</PanelSocialButton>
+        <PanelSocialButton icon={<SiGithub fill="#f5f5f5" />} url="https://github.com/MegalonVII/SDH-GameThemeMusic/">Github</PanelSocialButton>
         <PanelSocialButton icon={<SiCrowdin fill="#FFFFFF" />} url="https://crowdin.com/project/sdh-gamethememusic">{t('helpTranslate')}</PanelSocialButton>
       </PanelSection>
     </div>

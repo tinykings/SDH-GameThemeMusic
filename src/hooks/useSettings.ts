@@ -2,19 +2,15 @@ import { call } from '@decky/api'
 import { useEffect, useState } from 'react'
 
 export type Settings = {
-  defaultMuted: boolean
-  useYtDlp: boolean
-  downloadAudio: boolean
-  invidiousInstance: string
   volume: number
+  musicProvider?: string
+  autoPlaybackMode?: 'stream' | 'download'
 }
 
-export const defaultSettings = {
-  defaultMuted: false,
-  useYtDlp: false,
-  downloadAudio: false,
-  invidiousInstance: 'https://inv.tux.pizza',
-  volume: 1
+export const defaultSettings: Settings = {
+  volume: 1,
+  musicProvider: 'youtube',
+  autoPlaybackMode: 'download'
 }
 
 export const useSettings = () => {
@@ -30,7 +26,7 @@ export const useSettings = () => {
         'settings',
         settings
       )
-      setSettings(savedSettings)
+      setSettings({ ...defaultSettings, ...savedSettings })
       setIsLoading(false)
     }
     getData()
@@ -51,31 +47,22 @@ export const useSettings = () => {
     })
   }
 
-  function setDefaultMuted(value: Settings['defaultMuted']) {
-    updateSettings('defaultMuted', value)
-  }
-  function setUseYtDlp(value: Settings['useYtDlp']) {
-    updateSettings('useYtDlp', value)
-    // Currently, downloads don't work with Invidious, so they can only be enabled iff yt-dlp is enabled.
-    updateSettings('downloadAudio', value)
-  }
-  function setDownloadAudio(value: Settings['downloadAudio']) {
-    updateSettings('downloadAudio', value)
-  }
-  function setInvidiousInstance(value: Settings['invidiousInstance']) {
-    updateSettings('invidiousInstance', value)
-  }
   function setVolume(value: Settings['volume']) {
     updateSettings('volume', value)
+  }
+  function setMusicProvider(value: Settings['musicProvider']) {
+    updateSettings('musicProvider', value)
+  }
+
+  function setAutoPlaybackMode(value: Settings['autoPlaybackMode']) {
+    updateSettings('autoPlaybackMode', value)
   }
 
   return {
     settings,
-    setDefaultMuted,
-    setUseYtDlp,
-    setDownloadAudio,
-    setInvidiousInstance,
     setVolume,
+    setMusicProvider,
+    setAutoPlaybackMode,
     isLoading
   }
 }

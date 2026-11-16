@@ -1,8 +1,12 @@
 # Game Theme Music
 
-# No longer Maintained.
+# Occasionally Maintained.
 
-[![Crowdin](https://badges.crowdin.net/sdh-gamethememusic/localized.svg)](https://crowdin.com/project/sdh-gamethememusic) [![Chat](https://img.shields.io/badge/chat-on%20discord-7289da.svg)](https://deckbrew.xyz/discord)
+## A Continuation Fork
+
+This is a fork from me of this plugin meant to be a continuation of the plugin itself. In case any issues arise I will try my best to work at this, though per licensing contributions are always welcome.
+
+[![Crowdin](https://badges.crowdin.net/sdh-gamethememusic/localized.svg)](https://crowdin.com/project/sdh-gamethememusic) [![Chat](https://img.shields.io/badge/chat-on%20discord-7289da.svg)](https://deckbrew.xyz/discord) [![Build](https://github.com/MegalonVII/SDH-GameThemeMusic/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/MegalonVII/SDH-GameThemeMusic/actions/workflows/build.yml)
 
 Play theme songs on your game pages. Compatible with the [AudioLoader](https://github.com/EMERALD0874/SDH-AudioLoader) plugin (AudioLoader version >= 1.5.0).
 
@@ -42,7 +46,7 @@ This plugin requires [Decky Loader](https://github.com/SteamDeckHomebrew/decky-l
 
 ## Other Plugins
 
-Check out my other plugin [ProtonDB Badges ❤️](https://github.com/OMGDuke/protondb-decky)
+Check out Duke's other plugin [ProtonDB Badges ❤️](https://github.com/OMGDuke/protondb-decky)
 
 ## Localisation
 
@@ -100,6 +104,6 @@ Localisation is now available via [Crowdin](https://crowdin.com/project/sdh-game
 
 [![tr translation](https://img.shields.io/badge/dynamic/json?color=blue&label=Turkish&style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGlkPSJmbGFnLWljb25zLXRyIiB2aWV3Qm94PSIwIDAgNjQwIDQ4MCI+CiAgPGcgZmlsbC1ydWxlPSJldmVub2RkIj4KICAgIDxwYXRoIGZpbGw9IiNlMzBhMTciIGQ9Ik0wIDBoNjQwdjQ4MEgweiIvPgogICAgPHBhdGggZmlsbD0iI2ZmZiIgZD0iTTQwNyAyNDcuNWMwIDY2LjItNTQuNiAxMTkuOS0xMjIgMTE5LjlzLTEyMi01My43LTEyMi0xMjAgNTQuNi0xMTkuOCAxMjItMTE5LjggMTIyIDUzLjcgMTIyIDExOS45eiIvPgogICAgPHBhdGggZmlsbD0iI2UzMGExNyIgZD0iTTQxMyAyNDcuNWMwIDUzLTQzLjYgOTUuOS05Ny41IDk1LjlzLTk3LjYtNDMtOTcuNi05NiA0My43LTk1LjggOTcuNi05NS44IDk3LjYgNDIuOSA5Ny42IDk1Ljl6Ii8+CiAgICA8cGF0aCBmaWxsPSIjZmZmIiBkPSJtNDMwLjcgMTkxLjUtMSA0NC4zLTQxLjMgMTEuMiA0MC44IDE0LjUtMSA0MC43IDI2LjUtMzEuOCA0MC4yIDE0LTIzLjItMzQuMSAyOC4zLTMzLjktNDMuNSAxMi0yNS44LTM3eiIvPgogIDwvZz4KPC9zdmc+Cg==&query=%24.progress.22.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15707857-578443.json)](https://crowdin.com/project/sdh-gamethememusic/tr) Provided by Reyazeit
 
-[![uk translation](https://img.shields.io/badge/dynamic/json?color=blue&label=Ukrainian&style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGlkPSJmbGFnLWljb25zLXVhIiB2aWV3Qm94PSIwIDAgNjQwIDQ4MCI+CiAgPGcgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2Utd2lkdGg9IjFwdCI+CiAgICA8cGF0aCBmaWxsPSJnb2xkIiBkPSJNMCAwaDY0MHY0ODBIMHoiLz4KICAgIDxwYXRoIGZpbGw9IiMwMDU3YjgiIGQ9Ik0wIDBoNjQwdjI0MEgweiIvPgogIDwvZz4KPC9zdmc+Cg==&query=%24.progress.23.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15707857-578443.json)](https://crowdin.com/project/sdh-gamethememusic/uk) Provided by awesomedude06 and sophiebaran23
+[![uk translation](https://img.shields.io/badge/dynamic/json?color=blue&label=Ukrainian&style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGlkPSJmbGFnLWljb25zLXVhIiB2aWV3Qm94PSIwIDAgNjQwIDQ4MCI+CiAgPGcgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2Utd2lkdGg9IjFwdCI+CiAgICA8cGF0aCBmaWxsPSJnb2xkIiBkPSJNMCAwaDY0MHY0ODBIMHoiLz4KICAgIDxwYXRoIGZpbGw9IiMwMDU3YjgiIGQ9Ik0wIDBoNjQwdjI0MEgweiIvPgogIDwvZz4KPC9zdmc+Cg==&query=%24.progress.23.data.translationProgress&url=https%3A%2F%2Fgist.githubusercontent.com%2Folisikh%2F76f423ce36e55a12a42d6650dc7a49aa%2Fraw%2Fuk-badge.json)](https://crowdin.com/project/sdh-gamethememusic/uk) Provided by awesomedude06, sophiebaran23, and YatsynychRoman
 
 [![vi translation](https://img.shields.io/badge/dynamic/json?color=blue&label=Vietnamese&style=flat&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGlkPSJmbGFnLWljb25zLXZuIiB2aWV3Qm94PSIwIDAgNjQwIDQ4MCI+CiAgPGRlZnM+CiAgICA8Y2xpcFBhdGggaWQ9ImEiPgogICAgICA8cGF0aCBmaWxsLW9wYWNpdHk9Ii43IiBkPSJNLTg1LjMgMGg2ODIuNnY1MTJILTg1LjN6Ii8+CiAgICA8L2NsaXBQYXRoPgogIDwvZGVmcz4KICA8ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcGF0aD0idXJsKCNhKSIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODApIHNjYWxlKC45Mzc1KSI+CiAgICA8cGF0aCBmaWxsPSIjZGEyNTFkIiBkPSJNLTEyOCAwaDc2OHY1MTJoLTc2OHoiLz4KICAgIDxwYXRoIGZpbGw9IiNmZjAiIGQ9Ik0zNDkuNiAzODEgMjYwIDMxNC4zbC04OSA2Ny4zTDIwNCAyNzJsLTg5LTY3LjcgMTEwLjEtMSAzNC4yLTEwOS40TDI5NCAyMDNsMTEwLjEuMS04OC41IDY4LjQgMzMuOSAxMDkuNnoiLz4KICA8L2c+Cjwvc3ZnPgo=&query=%24.progress.24.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15707857-578443.json)](https://crowdin.com/project/sdh-gamethememusic/vi)

@@ -1,10 +1,10 @@
 import { DialogButton, Focusable } from '@decky/ui'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { toaster } from '@decky/api'
 import useTranslations from '../../hooks/useTranslations'
 import { getResolver } from '../../actions/audio'
-import { YouTubeVideoPreview } from '../../../types/YouTube'
-import { FaCheck } from 'react-icons/fa'
-import Spinner from '../spinner'
+import { MediaContentPreview } from 'types/media'
+import { FaCheck, FaExclamationTriangle } from 'react-icons/fa'
 import useAudioPlayer from '../../hooks/useAudioPlayer'
 import { useSettings } from '../../hooks/useSettings'
 
@@ -15,7 +15,7 @@ export default function AudioPlayer({
   video,
   volume
 }: {
-  video: YouTubeVideoPreview & { isPlaying: boolean }
+  video: MediaContentPreview & { isPlaying: boolean }
   volume: number
   handlePlay: (startPlaying: boolean) => void
   selected: boolean
@@ -26,57 +26,115 @@ export default function AudioPlayer({
   }) => Promise<void>
 }) {
   const t = useTranslations()
-  // If the URL is defined already, we don't need to load anything here.
-  const [loading, setLoading] = useState(video.url === undefined)
+  const [fetching, setFetching] = useState(false)
   const [downloading, setDownloading] = useState(false)
-  const [audioUrl, setAudio] = useState<string | undefined>()
-  const { settings, isLoading: settingsLoading } = useSettings()
+  const [downloaded, setDownloaded] = useState(selected)
+  const [audioUrl, setAudio] = useState<string | undefined>(
+    video.url && !video.url.includes('youtube.com') && !video.url.includes('youtu.be') ? video.url : undefined
+  )
+  const { settings } = useSettings()
 
   const audioPlayer = useAudioPlayer(audioUrl)
 
+  const [isPlaying, setIsPlaying] = useState(false)
+  const fetchIdRef = useRef(0)
+
   useEffect(() => {
-    async function getData() {
-      const resolver = getResolver(settings.useYtDlp)
-      setLoading(true)
+    setIsPlaying(video.isPlaying)
+  }, [video.isPlaying])
+
+  useEffect(() => {
+    let ignore = false
+    async function getDownloaded() {
+      const resolver = getResolver(settings.musicProvider)
+      const result = selected || await resolver.isDownloaded(video)
+      if (!ignore) setDownloaded(result)
+    }
+    getDownloaded()
+    return () => {
+      ignore = true
+    }
+  }, [selected, settings.musicProvider, video.id])
+
+  async function getUrl() {
+    if (audioUrl?.length && !audioUrl.includes('youtube.com') && !audioUrl.includes('youtu.be')) return audioUrl
+    try {
+      const resolver = getResolver(settings.musicProvider)
       const res = await resolver.getAudioUrlFromVideo(video)
       setAudio(res)
-      setLoading(false)
+      return res
+    } catch (err) {
+      console.error(err)
+      return undefined
     }
-    if (video.id.length && !settingsLoading) {
-      getData()
-    }
-  }, [video.id, settingsLoading])
+  }
 
   useEffect(() => {
     if (audioPlayer.isReady) {
       audioPlayer.setVolume(volume)
+      if (video.isPlaying) {
+        audioPlayer.play()
+      } else {
+        audioPlayer.stop()
+      }
     }
-  }, [audioPlayer.isReady, volume])
+  }, [video.isPlaying, audioPlayer.isReady])
 
-  useEffect(() => {
-    if (audioPlayer.isReady) {
-      if (video.isPlaying) audioPlayer.play()
-      else audioPlayer.stop()
+  async function togglePlay() {
+    const startPlaying = !isPlaying
+    setIsPlaying(startPlaying)
+    if (startPlaying) {
+      const id = ++fetchIdRef.current
+      setFetching(true)
+      try {
+        const url = audioUrl || (await getUrl())
+        if (id !== fetchIdRef.current) return
+        if (url?.length) {
+          handlePlay(true)
+        } else {
+          setIsPlaying(false)
+          toaster.toast({
+            title: t('playbackFailed'),
+            body: t('playbackFailedDetail'),
+            icon: <FaExclamationTriangle />,
+            duration: 3000
+          })
+        }
+      } finally {
+        setFetching(false)
+      }
+    } else {
+      handlePlay(false)
     }
-  }, [video.isPlaying])
-
-  function togglePlay() {
-    handlePlay(!video.isPlaying)
   }
 
   async function selectAudio() {
-    if (audioUrl?.length && video.id.length) {
-      setDownloading(true)
+    if (!video.id.length) return
+    setDownloading(true)
+    setFetching(true)
+    try {
+      const url = audioUrl || (await getUrl())
+      if (!url?.length) {
+        toaster.toast({
+          title: t('playbackFailed'),
+          body: t('playbackFailedDetail'),
+          icon: <FaExclamationTriangle />,
+          duration: 3000
+        })
+        return
+      }
       await selectNewAudio({
         title: video.title,
         videoId: video.id,
-        audioUrl: audioUrl
+        audioUrl: url
       })
+      setDownloaded(true)
+    } finally {
+      setFetching(false)
       setDownloading(false)
     }
   }
 
-  if (!loading && !audioUrl) return <></>
   return (
     <div>
       <Focusable
@@ -87,13 +145,13 @@ export default function AudioPlayer({
           gridTemplateRows: 'max-content max-content max-content',
           overflow: 'hidden',
           padding: '10px',
-          width: '230px'
+          width: '170px'
         }}
       >
         <div
           style={{
             position: 'relative',
-            width: '230px',
+            width: '170px',
             height: 0,
             paddingBottom: '56.25%',
             overflow: 'hidden'
@@ -104,7 +162,7 @@ export default function AudioPlayer({
             alt={video.title}
             style={{
               overflow: 'hidden',
-              width: '230px',
+              width: '170px',
               borderRadius: '6px',
               position: 'absolute',
               top: '50%',
@@ -119,78 +177,65 @@ export default function AudioPlayer({
             color: 'var(--main-editor-text-color)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            width: '230px',
+            width: '170px',
             height: '68px'
           }}
         >
           {video.title}
         </p>
 
-        {loading || downloading ? (
-          <div
-            style={{
-              height: '85px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            width: '170px'
+          }}
+        >
+          <DialogButton
+            onClick={togglePlay}
+            disabled={fetching}
+            focusable={true}
           >
-            {downloading && <div>Downloading...</div>}
-            <Spinner />
-          </div>
-        ) : (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              width: '230px'
-            }}
-          >
+            {isPlaying ? t('stop') : t('play')}
+          </DialogButton>
+          <div style={{ position: 'relative' }}>
             <DialogButton
-              onClick={togglePlay}
-              disabled={loading}
-              focusable={!loading}
+              disabled={selected || downloading || fetching}
+              focusable={!selected && !downloading}
+              onClick={selectAudio}
             >
-              {video.isPlaying ? t('stop') : t('play')}
+              {selected
+                ? t('selected')
+                : downloaded
+                  ? t('select')
+                : downloading
+                  ? t('downloading')
+                  : t('download')}
             </DialogButton>
-            <div style={{ position: 'relative' }}>
-              <DialogButton
-                disabled={selected || loading}
-                focusable={!selected && !loading}
-                onClick={selectAudio}
+            {selected || downloaded ? (
+              <div
+                style={{
+                  height: '20px',
+                  width: '20px',
+                  position: 'absolute',
+                  bottom: '-6px',
+                  right: '-6px',
+                  background: '#59bf40',
+                  borderRadius: '50%',
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
               >
-                {selected
-                  ? t('selected')
-                  : settings.downloadAudio
-                    ? t('download')
-                    : t('select')}
-              </DialogButton>
-              {selected ? (
-                <div
-                  style={{
-                    height: '20px',
-                    width: '20px',
-                    position: 'absolute',
-                    bottom: '-6px',
-                    right: '-6px',
-                    background: '#59bf40',
-                    borderRadius: '50%',
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <FaCheck />
-                </div>
-              ) : (
-                ''
-              )}
-            </div>
+                <FaCheck />
+              </div>
+            ) : (
+              ''
+            )}
           </div>
-        )}
+        </div>
       </Focusable>
     </div>
   )
