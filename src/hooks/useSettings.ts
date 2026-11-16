@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react'
 export type Settings = {
   volume: number
   musicProvider?: string
+  autoPlaybackMode?: 'stream' | 'download'
 }
 
-export const defaultSettings = {
+export const defaultSettings: Settings = {
   volume: 1,
-  musicProvider: 'youtube'
+  musicProvider: 'youtube',
+  autoPlaybackMode: 'download'
 }
 
 export const useSettings = () => {
@@ -24,7 +26,7 @@ export const useSettings = () => {
         'settings',
         settings
       )
-      setSettings(savedSettings)
+      setSettings({ ...defaultSettings, ...savedSettings })
       setIsLoading(false)
     }
     getData()
@@ -52,10 +54,15 @@ export const useSettings = () => {
     updateSettings('musicProvider', value)
   }
 
+  function setAutoPlaybackMode(value: Settings['autoPlaybackMode']) {
+    updateSettings('autoPlaybackMode', value)
+  }
+
   return {
     settings,
     setVolume,
     setMusicProvider,
+    setAutoPlaybackMode,
     isLoading
   }
 }

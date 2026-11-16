@@ -18,6 +18,7 @@ import useTranslations from '../../hooks/useTranslations'
 import { MediaContentPreview } from 'types/media'
 import NoMusic from './noMusic'
 import { getResolver } from '../../actions/audio'
+import { removeReplacedTheme } from '../../actions/automaticThemes'
 
 export default function ChangePage({
   customSearch,
@@ -82,8 +83,10 @@ export default function ChangePage({
       )
       return
     }
+    const previous = await getCache(parseInt(appid))
+    await updateCache(parseInt(appid), { videoId: audio.videoId })
     setSelected(audio.videoId)
-    updateCache(parseInt(appid), { videoId: audio.videoId })
+    await removeReplacedTheme(previous?.videoId, audio.videoId)
   }
 
   return (

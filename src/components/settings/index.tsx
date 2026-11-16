@@ -1,6 +1,7 @@
 import {
   ButtonItem,
   ConfirmModal,
+  DropdownItem,
   Menu,
   MenuItem,
   PanelSection,
@@ -38,6 +39,7 @@ export default function Index() {
   const {
     settings,
     setVolume,
+    setAutoPlaybackMode,
   } = useSettings()
 
   const t = useTranslations()
@@ -186,6 +188,18 @@ export default function Index() {
   return (
     <div>
       <PanelSection title={t('settings')}>
+        <PanelSectionRow>
+          <DropdownItem
+            label="Automatic theme playback"
+            description="Stream immediately. Auto download also saves songs in the background for faster, offline playback later. Existing downloads are reused in either mode."
+            rgOptions={[
+              { label: 'Auto stream', data: 'stream' },
+              { label: 'Auto download', data: 'download' }
+            ]}
+            selectedOption={settings.autoPlaybackMode}
+            onChange={(option) => setAutoPlaybackMode(option.data)}
+          />
+        </PanelSectionRow>
         <PanelSectionRow>
           <SliderField
             label={t('volume')}

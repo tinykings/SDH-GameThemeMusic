@@ -237,6 +237,16 @@ class Plugin:
 
         return read_audio_data_url(local_match)
 
+    async def remove_unused_audio(self, id: str):
+        # The frontend checks that no game references this track before calling.
+        filename = get_audio_filename(id)
+        music_dir = Path(self.music_path).resolve()
+        for match in music_dir.glob(f"{glob.escape(filename)}.*"):
+            if (match.resolve().parent == music_dir and match.is_file()
+                    and match.suffix.lstrip('.').lower() in AUDIO_DOWNLOAD_EXTENSIONS):
+                match.unlink()
+                logger.info(f"Removed replaced theme download: {match.name}")
+
     async def local_audio_exists(self, id: str):
         filename = get_audio_filename(id)
         return self.local_match(filename) is not None
