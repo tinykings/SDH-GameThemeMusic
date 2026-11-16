@@ -1,12 +1,22 @@
 # Game Theme Music
 
-# Occasionally Maintained.
+## Maintained by Ryan (@tinykings)
 
-## A Continuation Fork
+This independent continuation fork is maintained by [Ryan (@tinykings)](https://github.com/tinykings). It builds on the original work by [OMGDuke](https://github.com/OMGDuke/SDH-GameThemeMusic) and the continuation by [MegalonVII](https://github.com/MegalonVII/SDH-GameThemeMusic), with the existing license and attribution preserved.
 
-This is a fork from me of this plugin meant to be a continuation of the plugin itself. In case any issues arise I will try my best to work at this, though per licensing contributions are always welcome.
+**[Download releases](https://github.com/tinykings/SDH-GameThemeMusic/releases)** · **[Report an issue](https://github.com/tinykings/SDH-GameThemeMusic/issues)** · Contributions are welcome.
 
-[![Crowdin](https://badges.crowdin.net/sdh-gamethememusic/localized.svg)](https://crowdin.com/project/sdh-gamethememusic) [![Chat](https://img.shields.io/badge/chat-on%20discord-7289da.svg)](https://deckbrew.xyz/discord) [![Build](https://github.com/MegalonVII/SDH-GameThemeMusic/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/MegalonVII/SDH-GameThemeMusic/actions/workflows/build.yml)
+### What's new in 1.8.3
+
+- **Automatic theme selection restored:** games without a saved selection search the configured provider and remember the first playable song. Manual selections and **No Music** remain respected.
+- **Auto stream / Auto download:** choose the behavior in the plugin's settings. Auto download is the default: playback starts by streaming while the song downloads in the background, then uses the local file on later visits for faster, offline playback.
+- **Download notifications:** see when a background download starts, finishes, or fails. Failed downloads retry on a later visit.
+- **Replacement cleanup:** selecting a new song removes the old download only after the replacement downloads and saves successfully, and only if no other game still uses it. Existing orphaned downloads are not removed retroactively.
+- **Provider support retained:** YouTube and KHInsider remain available through the Music Provider dropdown on the game's Change Theme Music screen.
+
+Auto stream does not delete existing downloads; both modes reuse local files when available. See [Automatic theme playback](./AUTOMATIC_THEMES.md) for more details.
+
+[![Crowdin](https://badges.crowdin.net/sdh-gamethememusic/localized.svg)](https://crowdin.com/project/sdh-gamethememusic) [![Chat](https://img.shields.io/badge/chat-on%20discord-7289da.svg)](https://deckbrew.xyz/discord) [![Build](https://github.com/tinykings/SDH-GameThemeMusic/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/tinykings/SDH-GameThemeMusic/actions/workflows/build.yml)
 
 Play theme songs on your game pages. Compatible with the [AudioLoader](https://github.com/EMERALD0874/SDH-AudioLoader) plugin (AudioLoader version >= 1.5.0).
 
@@ -14,7 +24,7 @@ Play theme songs on your game pages. Compatible with the [AudioLoader](https://g
 
 ## How it works
 
-This plugin will find a games theme music based on the games name and play it in the background. An internet connection is required. It also supports non steam games.
+This plugin finds a game's theme music based on its name and plays it in the background. An internet connection is required for searching, streaming, and downloading new songs. Downloaded themes can play offline. Non-Steam games are also supported.
 
 The song that plays can be customised via the games context menu.
 
@@ -22,7 +32,7 @@ The song that plays can be customised via the games context menu.
 
 ## Decky Loader
 
-This plugin requires [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader). Game Theme Music is available on the store.
+This plugin requires [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader). Download this fork's installable package from [GitHub Releases](https://github.com/tinykings/SDH-GameThemeMusic/releases) and install the ZIP using Decky's developer settings. The store version may differ from this fork.
 
 ## Steam Deck Homebrew Discord
 
